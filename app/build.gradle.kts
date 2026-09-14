@@ -5,7 +5,7 @@ plugins {
 }
 
 // Datos del repositorio publico usados por el actualizador dentro de la app.
-val githubOwner = "Davidfgq12"
+val githubOwner = "Johanfer12"
 val githubRepo = "LinguaPulse"
 
 // La build de CI usa el numero de ejecucion para tener un versionCode siempre creciente,
