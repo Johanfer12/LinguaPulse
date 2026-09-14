@@ -163,9 +163,10 @@ fun StudyScreen(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                text = "Pendiente hoy",
+                                text = "${dueCards.size - currentIndex} pendientes hoy",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
@@ -197,17 +198,18 @@ fun StudyScreen(
                         .padding(bottom = 12.dp)
                 ) {
                     if (!isFlipped) {
-                        Button(
-                            onClick = { isFlipped = true },
+                        // Sin boton duplicado: la tarjeta se voltea tocandola.
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("Mostrar Significado & Ejemplos", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "Toca la tarjeta para ver el significado",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            )
                         }
                     } else {
                         SrsRatingButtons(

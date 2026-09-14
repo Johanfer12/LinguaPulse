@@ -67,7 +67,7 @@ object NotificationHelper {
         val contentText = "${card.termEn}: ${card.meaningEs}"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(
@@ -78,7 +78,7 @@ object NotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .addAction(
-                R.drawable.ic_launcher_foreground,
+                R.drawable.ic_notification,
                 "Revisar Tarjeta",
                 pendingIntent
             )

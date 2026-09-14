@@ -1,5 +1,6 @@
 package com.antigravity.linguapulse.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -37,11 +38,18 @@ fun FlipCardView(
     onSpeak: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val rotation by animateFloatAsState(
+    // `animateFloatAsState` se guarda como State y NO se delega con `by`: leer el
+    // valor dentro de la composicion obligaba a recomponer el Box (y sus hijos)
+    // en cada frame de la animacion. Ahora solo lo lee el bloque graphicsLayer,
+    // que se ejecuta en la fase de dibujo.
+    val rotation = animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,
-        animationSpec = tween(durationMillis = 420),
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
         label = "CardFlipAnimation"
     )
+
+    // Solo invalida cuando realmente cambia la cara visible, no en cada grado.
+    val showBack by remember { derivedStateOf { rotation.value > 90f } }
 
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -50,31 +58,27 @@ fun FlipCardView(
             .fillMaxWidth()
             .height(440.dp)
             .graphicsLayer {
-                rotationY = rotation
+                rotationY = rotation.value
                 cameraDistance = 14f * density
             }
             .clickable(
                 interactionSource = interactionSource,
-                indication = null
-            ) {
-                onFlip()
-            },
+                indication = null,
+                onClick = onFlip
+            ),
         contentAlignment = Alignment.Center
     ) {
-        if (rotation <= 90f) {
-            // Front Card
+        if (!showBack) {
             CardFaceFront(
                 card = card,
                 onSpeak = onSpeak
             )
         } else {
-            // Back Card (mirrored back so text reads normally)
+            // Cara trasera espejada para que el texto se lea normal.
             CardFaceBack(
                 card = card,
                 onSpeak = onSpeak,
-                modifier = Modifier.graphicsLayer {
-                    rotationY = 180f
-                }
+                modifier = Modifier.graphicsLayer { rotationY = 180f }
             )
         }
     }

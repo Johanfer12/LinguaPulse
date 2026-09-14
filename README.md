@@ -1,5 +1,7 @@
 # 📱 LinguaPulse - Memofichas SRS, Notificaciones Inteligentes y Guía B2B Tech
 
+> **Versión actual: 1.1.0-beta** · Cada push a `main` publica automáticamente una versión nueva que la app detecta e instala sola.
+
 **LinguaPulse** es una aplicación nativa para Android desarrollada en **Kotlin** con **Jetpack Compose (Material 3)**. Su propósito es acelerar el aprendizaje y retención permanente de vocabulario, conectores, phrasal verbs y expresiones clave en inglés mediante el algoritmo de **Repetición Espaciada (SRS / SM-2)**, complementado con un sistema de **notificaciones periódicas interactivas**, soporte dinámico de **tema claro y oscuro**, y una **Guía Rápida Interactiva de Conversación y Fórmulas** basada en reglas gramaticales reales y técnicas de ventas consultivas de tecnología (Cloud, Datos e Inteligencia Artificial).
 
 ---
@@ -24,7 +26,9 @@
 ### 3. 🔔 Notificaciones Periódicas Directas & Deep Linking
 - **Formato directo**: Título y cuerpo nítido: **`Palabra: Significado`** (ej. `"That being said: Dicho esto / No obstante"`).
 - **Interacción inmediata**: Al pulsar la notificación, se abre un diálogo modal para marcar si **"Ya me la aprendí"** o **"Aún no me la sé"** sin necesidad de navegar manualmente.
-- Frecuencia configurable (cada 2h, 4h, 8h o diario) con botón para disparar una **notificación de prueba inmediata**.
+- Frecuencia configurable: **cada 30 minutos, cada hora (recomendado), cada 2h, 4h, 8h o 1 vez al día**, con botón para disparar una **notificación de prueba inmediata**.
+- La frecuencia elegida se **guarda en disco**, así que sobrevive al cierre de la app y al reinicio del teléfono.
+- El mínimo real es de 15 minutos: es el periodo más corto que permite `WorkManager` en Android.
 - Compatible con permisos de Android 13+ (`POST_NOTIFICATIONS`).
 
 ### 4. 🌗 Tema Claro y Oscuro Dinámico
@@ -60,6 +64,35 @@ Pestaña dedicada con acordeones interactivos y pronunciación:
 
 ---
 
+## 🔄 Actualizaciones automáticas
+
+LinguaPulse se actualiza sola, sin tiendas de aplicaciones:
+
+| Paso | Qué ocurre |
+| --- | --- |
+| 1 | Haces `push` a `main`. |
+| 2 | GitHub Actions compila el APK de release y publica un Release con `update.json`. |
+| 3 | La app consulta `releases/latest/download/update.json` al abrirse (y cuando pulsas *Buscar actualizaciones*). |
+| 4 | Si el `versionCode` remoto es mayor, muestra el aviso, descarga el APK y lanza el instalador del sistema. |
+
+El `versionCode` se deriva del número de ejecución del workflow (`1000 + GITHUB_RUN_NUMBER`), así que **siempre crece** con cada cambio publicado.
+
+La primera vez, Android pedirá el permiso de *"Instalar apps desconocidas"*; la app abre esa pantalla de ajustes automáticamente.
+
+---
+
+## ⚡ Rendimiento
+
+Trabajo de optimización aplicado sobre la versión inicial:
+
+- **Build de release con R8 y shrink de recursos** en lugar del APK debug. Un build debug lleva instrumentación de depuración y no optimiza nada: era la causa principal de la sensación de 30 fps.
+- **Baseline Profile de Compose** (`profileinstaller`), que elimina el coste de compilación JIT en el primer arranque.
+- **Animación de giro sin recomposición por frame**: el valor animado ya no se lee en la composición, solo dentro del bloque `graphicsLayer` (fase de dibujo), y la cara visible se calcula con `derivedStateOf`.
+- **Arranque sin trabajo en el hilo principal**: la creación del canal de notificaciones y la apertura de Room se movieron a una corrutina de IO.
+- Listas constantes elevadas a nivel de fichero para no reasignarlas en cada recomposición.
+
+---
+
 ## 🏗️ Arquitectura Técnica
 
 - **Lenguaje**: Kotlin 1.9.23
@@ -74,19 +107,14 @@ Pestaña dedicada con acordeones interactivos y pronunciación:
 
 ## 🚀 Cómo Generar el APK
 
-### Opción 1: Automático mediante GitHub Actions
-1. Sube este proyecto a un repositorio de GitHub (público o privado):
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit LinguaPulse"
-   git branch -M main
-   git remote add origin https://github.com/TU_USUARIO/LinguaPulse.git
-   git push -u origin main
-   ```
-2. Ve a la pestaña **Actions** en tu repositorio de GitHub.
-3. El workflow `Build LinguaPulse APK` se ejecutará automáticamente en minutos.
-4. Descarga el artefacto `LinguaPulse-Debug-APK` que contiene el archivo `.apk` listo para instalar en tu teléfono Android.
+### Opción 1: Automático mediante GitHub Actions (recomendado)
+1. Haz `git push` de tus cambios a `main`.
+2. El workflow `Build LinguaPulse APK` compila un **APK de release optimizado** (R8 + shrink de recursos) y publica un **GitHub Release** con:
+   - `LinguaPulse-<versión>.apk` — el instalador firmado.
+   - `update.json` — el manifiesto que la app consulta para detectar la actualización.
+3. Desde el teléfono no tienes que hacer nada: al abrir LinguaPulse verás el aviso *"Nueva versión disponible"*. También puedes forzarlo en **Ajustes → Actualizaciones → Buscar actualizaciones**.
+
+> La primera ejecución del workflow genera y versiona `signing/linguapulse-beta.jks`. Ese keystore mantiene la **misma firma** en todas las builds, que es lo que permite instalar una actualización encima de la anterior sin desinstalar. Al ser un keystore de beta en un repositorio público, no debe reutilizarse para una publicación en Google Play.
 
 ### Opción 2: Compilación Local en Android Studio
 1. Abre la carpeta `LinguaPulse` en **Android Studio Hedgehog / Iguana / Jellyfish**.

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,13 +22,15 @@ import androidx.compose.ui.unit.sp
 import com.antigravity.linguapulse.ui.theme.TagB2B
 import com.antigravity.linguapulse.ui.theme.TagDaily
 
+// Constante de nivel superior: antes se creaba una lista nueva en cada recomposicion.
+private val TAB_TITLES = listOf("Tiempos & Modales", "Reglas & Trucos", "Ventas B2B & Tips")
+
 @Composable
 fun GuideScreen(
     onSpeak: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabTitles = listOf("Tiempos & Modales", "Reglas & Trucos", "Ventas B2B & Tips")
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
 
     Column(
         modifier = modifier
@@ -60,7 +63,7 @@ fun GuideScreen(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.primary
                 ) {
-                    tabTitles.forEachIndexed { index, title ->
+                    TAB_TITLES.forEachIndexed { index, title ->
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +24,8 @@ import androidx.core.content.ContextCompat
 import com.antigravity.linguapulse.notifications.NotificationHelper
 import com.antigravity.linguapulse.ui.screens.*
 import com.antigravity.linguapulse.ui.theme.LinguaPulseTheme
+import com.antigravity.linguapulse.update.UpdateManager
+import com.antigravity.linguapulse.update.UpdateState
 import com.antigravity.linguapulse.util.TtsHelper
 
 enum class Screen(val title: String, val icon: ImageVector) {
@@ -31,6 +34,10 @@ enum class Screen(val title: String, val icon: ImageVector) {
     GUIDE("Guía", Icons.Default.MenuBook),
     SETTINGS("Ajustes", Icons.Default.Settings)
 }
+
+// Se evalua una sola vez: `Screen.values()` creaba un array nuevo en cada
+// recomposicion de la barra de navegacion.
+private val SCREENS = Screen.values()
 
 class MainActivity : ComponentActivity() {
 
@@ -45,8 +52,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             LinguaPulseTheme {
-                var currentScreen by remember { mutableStateOf(Screen.STUDY) }
-                var showAddDialog by remember { mutableStateOf(false) }
+                var currentScreen by rememberSaveable { mutableStateOf(Screen.STUDY) }
+                var showAddDialog by rememberSaveable { mutableStateOf(false) }
+                var updatePromptDismissed by rememberSaveable { mutableStateOf(false) }
 
                 // State collected from ViewModel
                 val allCards by viewModel.allCards.collectAsState()
@@ -55,15 +63,15 @@ class MainActivity : ComponentActivity() {
                 val masteredCount by viewModel.masteredCount.collectAsState()
                 val dueCount by viewModel.dueCount.collectAsState()
                 val selectedCategory by viewModel.selectedStudyCategory.collectAsState()
-                val intervalHours by viewModel.notificationIntervalHours.collectAsState()
+                val intervalMinutes by viewModel.notificationIntervalMinutes.collectAsState()
+                val autoCheckUpdates by viewModel.autoCheckUpdates.collectAsState()
+                val updateState by viewModel.updateState.collectAsState()
                 val deepLinkCard by viewModel.deepLinkCard.collectAsState()
 
                 // Android 13+ Notification Permission Launcher
                 val permissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    // Notification permission response handled gracefully
-                }
+                ) { /* La respuesta se maneja de forma silenciosa. */ }
 
                 fun checkAndRequestNotificationPermission() {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -77,8 +85,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                fun startUpdateDownload() {
+                    if (UpdateManager.canRequestInstall(this@MainActivity)) {
+                        viewModel.downloadAndInstallUpdate()
+                    } else {
+                        // Sin este permiso el instalador del sistema nunca aparece.
+                        UpdateManager.openInstallPermissionSettings(this@MainActivity)
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     checkAndRequestNotificationPermission()
+                    // Detecta automaticamente cualquier version publicada desde el ultimo uso.
+                    viewModel.checkForUpdates(silent = true)
                 }
 
                 Scaffold(
@@ -87,7 +106,7 @@ class MainActivity : ComponentActivity() {
                             containerColor = MaterialTheme.colorScheme.surface,
                             tonalElevation = NavigationBarDefaults.Elevation
                         ) {
-                            Screen.values().forEach { screen ->
+                            SCREENS.forEach { screen ->
                                 val selected = currentScreen == screen
                                 NavigationBarItem(
                                     selected = selected,
@@ -120,11 +139,9 @@ class MainActivity : ComponentActivity() {
                             StudyScreen(
                                 dueCards = dueCards,
                                 selectedCategory = selectedCategory,
-                                onCategoryChange = { viewModel.setSelectedCategory(it) },
-                                onRatingSelected = { card, rating ->
-                                    viewModel.submitReview(card, rating)
-                                },
-                                onSpeak = { ttsHelper.speak(it) },
+                                onCategoryChange = viewModel::setSelectedCategory,
+                                onRatingSelected = viewModel::submitReview,
+                                onSpeak = ttsHelper::speak,
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }
@@ -133,15 +150,15 @@ class MainActivity : ComponentActivity() {
                             ExploreScreen(
                                 cards = allCards,
                                 onAddCardClick = { showAddDialog = true },
-                                onSpeak = { ttsHelper.speak(it) },
-                                onDeleteCard = { viewModel.deleteCard(it) },
+                                onSpeak = ttsHelper::speak,
+                                onDeleteCard = viewModel::deleteCard,
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }
 
                         Screen.GUIDE -> {
                             GuideScreen(
-                                onSpeak = { ttsHelper.speak(it) },
+                                onSpeak = ttsHelper::speak,
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }
@@ -151,24 +168,62 @@ class MainActivity : ComponentActivity() {
                                 totalCards = totalCount,
                                 masteredCards = masteredCount,
                                 dueCardsCount = dueCount,
-                                notificationIntervalHours = intervalHours,
-                                onIntervalChange = { viewModel.setNotificationInterval(it) },
-                                onSendTestNotification = { viewModel.sendTestNotification() },
+                                notificationIntervalMinutes = intervalMinutes,
+                                onIntervalChange = viewModel::setNotificationInterval,
+                                onSendTestNotification = viewModel::sendTestNotification,
                                 onRequestNotificationPermission = { checkAndRequestNotificationPermission() },
+                                onOpenDueCards = { currentScreen = Screen.STUDY },
+                                onOpenCatalog = { currentScreen = Screen.EXPLORE },
+                                updateState = updateState,
+                                autoCheckUpdates = autoCheckUpdates,
+                                onAutoCheckUpdatesChange = viewModel::setAutoCheckUpdates,
+                                onCheckUpdates = { viewModel.checkForUpdates(silent = false) },
+                                onDownloadUpdate = { startUpdateDownload() },
                                 modifier = Modifier.padding(innerPadding)
                             )
                         }
                     }
 
-                    // Deep link review dialog from notification
-                    if (deepLinkCard != null) {
-                        CardReviewDialog(
-                            card = deepLinkCard!!,
-                            onDismiss = { viewModel.clearDeepLinkCard() },
-                            onRatingSelected = { card, rating ->
-                                viewModel.submitReview(card, rating)
+                    // Aviso de version nueva detectada automaticamente.
+                    val available = updateState as? UpdateState.Available
+                    if (available != null && !updatePromptDismissed) {
+                        AlertDialog(
+                            onDismissRequest = { updatePromptDismissed = true },
+                            icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
+                            title = { Text("Nueva versión disponible") },
+                            text = {
+                                Text(
+                                    "LinguaPulse ${available.release.versionName} ya está publicada." +
+                                            if (available.release.notes.isNotBlank()) {
+                                                "\n\n${available.release.notes}"
+                                            } else {
+                                                ""
+                                            }
+                                )
                             },
-                            onSpeak = { ttsHelper.speak(it) }
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    updatePromptDismissed = true
+                                    startUpdateDownload()
+                                }) {
+                                    Text("Actualizar ahora")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { updatePromptDismissed = true }) {
+                                    Text("Más tarde")
+                                }
+                            }
+                        )
+                    }
+
+                    // Deep link review dialog from notification
+                    deepLinkCard?.let { card ->
+                        CardReviewDialog(
+                            card = card,
+                            onDismiss = viewModel::clearDeepLinkCard,
+                            onRatingSelected = viewModel::submitReview,
+                            onSpeak = ttsHelper::speak
                         )
                     }
 
@@ -176,9 +231,7 @@ class MainActivity : ComponentActivity() {
                     if (showAddDialog) {
                         AddCardDialog(
                             onDismiss = { showAddDialog = false },
-                            onCardAdded = { newCard ->
-                                viewModel.insertCustomCard(newCard)
-                            }
+                            onCardAdded = viewModel::insertCustomCard
                         )
                     }
                 }
