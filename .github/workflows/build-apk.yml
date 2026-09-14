@@ -25,6 +25,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Leer commit que dispara la build
+        id: commit
+        run: |
+          # Se lee aqui, antes del posible commit automatico del keystore,
+          # para que las notas del release describan el cambio real.
+          echo "subject=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
+
       - name: Configurar JDK 17
         uses: actions/setup-java@v4
         with:
@@ -79,19 +86,26 @@ jobs:
           echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - name: Preparar artefactos de publicacion
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          COMMIT_SUBJECT: ${{ steps.commit.outputs.subject }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/LinguaPulse-${{ steps.version.outputs.name }}.apk"
-          COMMIT_MSG=$(git log -1 --pretty=%s | sed 's/"/\\"/g')
-          cat > dist/update.json <<JSON
-          {
-            "versionCode": ${{ steps.version.outputs.code }},
-            "versionName": "${{ steps.version.outputs.name }}",
-            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.name }}/LinguaPulse-${{ steps.version.outputs.name }}.apk",
-            "notes": "$COMMIT_MSG",
-            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          JSON
+          cp app/build/outputs/apk/release/app-release.apk "dist/LinguaPulse-$VERSION_NAME.apk"
+
+          # jq escapa el mensaje del commit por nosotros: evita romper el JSON
+          # cuando el asunto lleva comillas, barras o acentos.
+          jq -n \
+            --argjson versionCode "$VERSION_CODE" \
+            --arg versionName "$VERSION_NAME" \
+            --arg apkUrl "https://github.com/$REPOSITORY/releases/download/v$VERSION_NAME/LinguaPulse-$VERSION_NAME.apk" \
+            --arg notes "$COMMIT_SUBJECT" \
+            --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, notes: $notes, publishedAt: $publishedAt}' \
+            > dist/update.json
+
           cat dist/update.json
 
       - name: Subir APK como artefacto de la ejecucion
