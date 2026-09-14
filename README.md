@@ -114,6 +114,8 @@ Trabajo de optimización aplicado sobre la versión inicial:
    - `update.json` — el manifiesto que la app consulta para detectar la actualización.
 3. Desde el teléfono no tienes que hacer nada: al abrir LinguaPulse verás el aviso *"Nueva versión disponible"*. También puedes forzarlo en **Ajustes → Actualizaciones → Buscar actualizaciones**.
 
+> Si trabajas sobre un **fork**, GitHub no ejecuta los workflows por `push` hasta que lo autorizas una vez desde la pestaña **Actions** del fork.
+
 > La primera ejecución del workflow genera y versiona `signing/linguapulse-beta.jks`. Ese keystore mantiene la **misma firma** en todas las builds, que es lo que permite instalar una actualización encima de la anterior sin desinstalar. Al ser un keystore de beta en un repositorio público, no debe reutilizarse para una publicación en Google Play.
 
 ### Opción 2: Compilación Local en Android Studio
